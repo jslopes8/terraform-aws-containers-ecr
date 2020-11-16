@@ -18,6 +18,8 @@ resource "aws_ecr_repository" "main" {
             scan_on_push = image_scanning_configuration.value.scan_on_push
         }
     }
+
+    tags = var.default_tags
 }
 resource "aws_ecr_repository_policy" "main" {
     count = var.create ? length(var.repository_policy) : 0
@@ -25,6 +27,7 @@ resource "aws_ecr_repository_policy" "main" {
     repository = aws_ecr_repository.main.0.name
     policy = data.aws_iam_policy_document.policy_document.0.json
 }
+
 data "aws_iam_policy_document" "policy_document" {
     count   = var.create ? length(var.repository_policy) : 0
 
@@ -57,4 +60,24 @@ data "aws_iam_policy_document" "policy_document" {
         }
       }
     }
+}
+data "template_file" "lifecycle_policy" {
+    count = var.create ? length(var.lifecycle_policy) : 0
+
+    template = file("${path.module}/templates/lifecycle-policy.tpl")
+    vars = {
+        rulePriority        = lookup(var.lifecycle_policy[count.index], "rulePriority", null)
+        ruleDescription     = lookup(var.lifecycle_policy[count.index], "ruleDescription", null)
+        ruleTagStatus       = lookup(var.lifecycle_policy[count.index], "ruleTagStatus", null)
+        ruleTagPrefixList   = lookup(var.lifecycle_policy[count.index], "ruleTagPrefixList", null)
+        ruleCountType       = lookup(var.lifecycle_policy[count.index], "ruleCountType", null)
+        ruleCountNumber     = lookup(var.lifecycle_policy[count.index], "ruleCountNumber", null)
+        ruleActionType      = lookup(var.lifecycle_policy[count.index], "ruleActionType", null)
+    }
+}
+resource "aws_ecr_lifecycle_policy" "main" {
+    count = var.create ? length(var.lifecycle_policy) : 0
+
+    repository = aws_ecr_repository.main.0.name
+    policy = data.template_file.lifecycle_policy.0.rendered
 }

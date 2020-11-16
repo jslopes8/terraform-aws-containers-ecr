@@ -21,3 +21,11 @@ variable "repository_policy" {
     type = any 
     default = []
 }
+variable "lifecycle_policy" {
+    type = any
+    default = []
+}
+variable "default_tags" {
+    type = map(string)
+    default = {}
+}
