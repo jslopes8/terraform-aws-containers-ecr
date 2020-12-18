@@ -29,3 +29,19 @@ variable "default_tags" {
     type = map(string)
     default = {}
 }
+variable "docker_source_path" {
+    type = string
+    default = null
+}
+variable "docker_image_name" {
+    type = string
+    default = null
+}
+variable "docker_image_tag" {
+    type = string
+    default = null
+}
+variable "git_source_url" {
+    type = string
+    default = null
+}

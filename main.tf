@@ -1,3 +1,6 @@
+data "aws_region" "current" {}
+data "aws_caller_identity" "current" {}
+
 resource "aws_ecr_repository" "main" {
     count = var.create ? 1 : 0
 
@@ -80,4 +83,41 @@ resource "aws_ecr_lifecycle_policy" "main" {
 
     repository = aws_ecr_repository.main.0.name
     policy = data.template_file.lifecycle_policy.0.rendered
+}
+
+resource "null_resource" "git_source_url" {
+    count = var.create && var.git_source_url != null ? 1 : 0
+  
+    provisioner "local-exec" {
+        interpreter = ["/bin/bash", "-c"]
+        command     = <<EOF
+            mkdir git_source_path
+            git clone --progress --single-branch "${var.git_source_url}" git_source_path
+            cd git_source_path
+            sudo docker build -t "${var.docker_image_name}" .
+            /usr/local/bin/aws --region "${data.aws_region.current.name}" --profile "${data.aws_caller_identity.current.account_id}" ecr get-login-password | sudo docker login --username AWS --password-stdin "${aws_ecr_repository.main.0.repository_url}"
+            sudo docker tag "${var.docker_image_name}" "${aws_ecr_repository.main.0.repository_url}":"${var.docker_image_tag}"
+            sudo docker push "${aws_ecr_repository.main.0.repository_url}:${var.docker_image_tag}"
+            cd ..
+            rm -rf git_source_path
+        EOF
+    }
+
+    depends_on = [ aws_ecr_repository.main  ]
+}
+resource "null_resource" "docker_source_local" {
+    count = var.create && var.docker_source_path != null ? 1 : 0
+  
+    provisioner "local-exec" {
+        interpreter = ["/bin/bash", "-c"]
+        command     = <<EOF
+            cd "${var.docker_source_path}"
+            /usr/local/bin/aws --region "${data.aws_region.current.name}" --profile "${data.aws_caller_identity.current.account_id}" ecr get-login-password | sudo docker login --username AWS --password-stdin "${aws_ecr_repository.main.0.repository_url}"
+            sudo docker build -t "${var.docker_image_name}" .
+            sudo docker tag "${var.docker_image_name}" "${aws_ecr_repository.main.0.repository_url}:${var.docker_image_tag}"
+            sudo docker push "${aws_ecr_repository.main.0.repository_url}:${var.docker_image_tag}"
+        EOF
+    }
+
+    depends_on = [ aws_ecr_repository.main  ]
 }
