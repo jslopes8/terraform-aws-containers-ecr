@@ -1,6 +1,15 @@
 data "aws_region" "current" {}
 data "aws_caller_identity" "current" {}
 
+resource "random_id" "repo" {
+  count = var.create ? 1 : 0
+  keepers = {
+    id = var.name_repo
+  }
+
+  byte_length = 8
+}
+
 resource "aws_ecr_repository" "main" {
     count = var.create ? 1 : 0
 
@@ -91,15 +100,15 @@ resource "null_resource" "git_source_url" {
     provisioner "local-exec" {
         #interpreter = ["/bin/bash", "-c"]
         command     = <<EOF
-            mkdir git_source_path
-            git clone --progress --single-branch "${var.git_source_url}" git_source_path
-            cd git_source_path
-            docker build -t "${var.docker_image_name}" .
-            aws --region "${data.aws_region.current.name}" --profile "${data.aws_caller_identity.current.account_id}" ecr get-login-password | docker login --username AWS --password-stdin "${aws_ecr_repository.main.0.repository_url}"
-            docker tag "${var.docker_image_name}" "${aws_ecr_repository.main.0.repository_url}":"${var.docker_image_tag}"
-            docker push "${aws_ecr_repository.main.0.repository_url}:${var.docker_image_tag}"
-            cd ..
-            rm -rf git_source_path
+            mkdir "git_source_path-${random_id.repo.0.hex}" ;
+            git clone --progress --single-branch "${var.git_source_url}" "git_source_path-${random_id.repo.0.hex}" ;
+            cd "git_source_path-${random_id.repo.0.hex}" ; 
+            docker build -t "${var.docker_image_name}" . ;
+            aws --region "${data.aws_region.current.name}" --profile "${data.aws_caller_identity.current.account_id}" ecr get-login-password | docker login --username AWS --password-stdin "${aws_ecr_repository.main.0.repository_url}" ;
+            docker tag "${var.docker_image_name}" "${aws_ecr_repository.main.0.repository_url}":"${var.docker_image_tag}" ;
+            docker push "${aws_ecr_repository.main.0.repository_url}:${var.docker_image_tag}" ;
+            cd .. ;
+            rm -rf "git_source_path-${random_id.repo.0.hex}"
         EOF
     }
 
